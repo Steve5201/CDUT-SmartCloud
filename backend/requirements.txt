@@ -1,0 +1,29 @@
+# --- 核心后端框架 ---
+fastapi==0.110.0
+uvicorn==0.29.0
+python-multipart==0.0.9
+
+# --- 关系型数据库 (PostgreSQL) 与 ORM ---
+sqlalchemy==2.0.29
+psycopg2-binary==2.9.9
+alembic==1.13.1
+pgvector==0.2.5
+
+# --- 数据验证与安全认证 (含底层 C 加密强绑定) ---
+pydantic==2.6.4
+pydantic-settings==2.2.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+
+# --- LangChain 与 AI 相关 ---
+langchain==0.2.16
+langchain-core==0.2.43
+langchain-openai==0.1.23
+langchain-community==0.2.16
+langchain-huggingface==0.0.3
+
+# --- 向量模型与文档处理 ---
+sentence-transformers==2.7.0
+pypdf==4.2.0
+python-dotenv==1.0.1

@@ -1,0 +1,15 @@
+# --- 忽略后端虚拟环境与缓存 ---
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/.env
+backend/model/
+
+# --- 忽略前端依赖与打包结果 ---
+frontend/node_modules/
+frontend/dist/
+
+# --- 忽略系统临时文件 ---
+.DS_Store
+Thumbs.db
