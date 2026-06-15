@@ -6,8 +6,8 @@ import router from '../router' // 等下我们会写这个 router
 // 1. 创建 Axios 实例，配置基础 URL
 const api = axios.create({
   // 这里的 baseURL 指向了你本地正在运行的 FastAPI 后端地址
-  baseURL: 'http://127.0.0.1:8000',
-  timeout: 60000, // 超时时间设为 60 秒，因为大模型思考和画图可能比较慢
+  baseURL: 'http://47.108.207.37:8000',
+  timeout: 20000, // 超时时间设为 60 秒，因为大模型思考和画图可能比较慢
 })
 
 // 2. 🚀 请求拦截器 (Request Interceptor)
