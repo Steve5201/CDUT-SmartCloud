@@ -106,7 +106,7 @@ from fastapi.responses import StreamingResponse  # 🌟 引入 FastAPI 专属流
 @router.post("/api/chat", summary="发送消息给智能体 (全异步流式通道)")
 async def chat_channel(
         session_id: int = Form(...),
-        user_message: str = Form(...),
+        user_message: str = Form(""), 
         file: Optional[UploadFile] = File(None),
         current_user: models.User = Depends(get_current_user),
         sys_db: Session = Depends(get_sys_db),
@@ -121,6 +121,7 @@ async def chat_channel(
         raise HTTPException(status_code=404, detail="会话不存在或无权访问")
 
     # 2. 物理落盘系统辅助文件
+    hidden_ctx = ""
     meta_payload = {}
     final_prompt_to_llm = user_message
     if file:
@@ -180,16 +181,17 @@ async def chat_channel(
                 yield sse_chunk
 
             # --- 流结束，写入数据库 ---
+            # 👑【核心修复 1】：使用传入的局部变量 session_id，而不是 session.id
+            new_user_log = models.ChatLog(session_id=session_id, role="user", content=user_message,
+                                          metadata_=meta_payload)
+
             ai_meta = {}
             if hidden_ctx: ai_meta["hidden_context"] = hidden_ctx
             if full_reasoning: ai_meta["reasoning_content"] = full_reasoning
             if used_tools: ai_meta["used_tools"] = used_tools  # 🌟存入数据库！
-
-            # 👑【核心修复 1】：使用传入的局部变量 session_id，而不是 session.id
-            new_user_log = models.ChatLog(session_id=session_id, role="user", content=user_message,
-                                          metadata_=meta_payload)
             new_ai_log = models.ChatLog(session_id=session_id, role="assistant", content=full_reply,
                                         metadata_=ai_meta)
+
             sys_db.add_all([new_user_log, new_ai_log])
             sys_db.commit()
 
