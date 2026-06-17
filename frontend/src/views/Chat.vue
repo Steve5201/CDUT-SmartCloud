@@ -209,6 +209,7 @@ const handleSelectSession = async (id) => {
       return {
         role: msg.role,
         content: msg.content,
+        metadata: meta,
         reasoning_content: reasonContent,
         toolLogs: toolLogs,
         sysError: '', // 历史记录通常不存系统崩溃报错
@@ -263,14 +264,6 @@ const handleDeleteSession = async (id) => {
 // 修改 src/views/Chat.vue 中的 handleSendMessage 流式响应函数
 
 const handleSendMessage = async ({ text, file }) => {
-  messageList.value.push({
-    role: 'user',
-    content: text,
-    is_file: !!file,
-    file_name: file ? file.name : '',
-    download_url: '' // 刚发出去时没有 URL，等下刷列表就会有了，不影响体验
-  })
-
   let targetSessionId = currentSessionId.value
 
   // ===================================================
@@ -299,7 +292,13 @@ const handleSendMessage = async ({ text, file }) => {
     }
   }
   // 1. 用户气泡
-  messageList.value.push({ role: 'user', content: text })
+  messageList.value.push({
+    role: 'user',
+    content: text,
+    is_file: !!file,
+    file_name: file ? file.name : '',
+    download_url: '',
+  })
   const tempAiIndex = messageList.value.length
   messageList.value.push({
     role: 'assistant',

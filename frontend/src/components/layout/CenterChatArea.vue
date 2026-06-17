@@ -117,7 +117,7 @@
 import { ref, nextTick, watch } from 'vue'
 import { UserOutlined, RobotOutlined, PaperClipOutlined, CloseCircleFilled, SendOutlined } from '@ant-design/icons-vue'
 import MessageRenderer from '../MessageRenderer.vue'
-import api from '../../../api/index' // 确保引入了 api
+import api from '../../api/index' // 确保引入了 api
 
 const getFileDownloadUrl = (relativeUrl) => {
   if (!relativeUrl) return '#'
