@@ -1,6 +1,14 @@
 <!-- src/components/layout/LeftSidebar.vue -->
 <template>
-  <a-layout-sider width="260" class="left-sider" theme="light">
+  <a-layout-sider
+    width="260"
+    class="left-sider"
+    theme="light"
+    collapsible
+    collapsedWidth="0"
+    breakpoint="md"
+    v-model:collapsed="isCollapsed"
+  >
     <div class="sider-header">
       <a-button type="primary" block size="large" class="new-chat-btn" @click="$emit('create-session')">
         <template #icon><plus-outlined /></template>
@@ -10,7 +18,12 @@
 
     <!-- 历史会话列表 -->
     <div class="session-list-container">
-      <a-menu mode="inline" :selectedKeys="[String(activeSessionId)]">
+      <a-menu mode="inline" :selectedKeys="[activeSessionId ? String(activeSessionId) : 'home']">
+        <!-- 🌟 【新增】：永恒的探索大厅入口。点击它直接向父组件派发 select-session(null) 清空状态 -->
+        <a-menu-item key="home" @click="$emit('select-session', null)">
+          <home-outlined /> 探索大厅 (首页)
+        </a-menu-item>
+        <a-menu-divider />
         <a-menu-item
           v-for="session in sessions"
           :key="String(session.id)"
@@ -84,7 +97,8 @@
 import { ref, nextTick } from 'vue'
 import {
   PlusOutlined, MessageOutlined, UserOutlined, SettingOutlined,
-  LogoutOutlined, LockOutlined, DeleteOutlined, EditOutlined
+  LogoutOutlined, LockOutlined, DeleteOutlined, EditOutlined,
+  HomeOutlined
 } from '@ant-design/icons-vue'
 
 defineProps({
@@ -92,6 +106,8 @@ defineProps({
   activeSessionId: [String, Number],
   currentUser: Object
 })
+
+const isCollapsed = ref(false)
 
 const emit = defineEmits([
   'create-session', 'select-session', 'logout',

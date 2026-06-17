@@ -11,6 +11,8 @@ from core.database import get_sys_db, get_ai_db
 from core import models, sys_service, encryption
 from core.dependencies import get_current_user
 import traceback
+import tempfile  # 确保头部引入了 tempfile
+import urllib.parse
 
 router = APIRouter(tags=["C. 智能体配置与聊天中枢"])
 
@@ -119,13 +121,16 @@ async def chat_channel(
         raise HTTPException(status_code=404, detail="会话不存在或无权访问")
 
     # 2. 物理落盘系统辅助文件
+    meta_payload = {}
     final_prompt_to_llm = user_message
-    hidden_ctx = ""  # 用于存入数据库的隐藏上下文
     if file:
-        user_folder = os.path.join(os.getcwd(), f"uploads/user_{current_user.id}")
-        os.makedirs(user_folder, exist_ok=True)
+        temp_dir = os.path.join(tempfile.gettempdir(), "cdut_temp", f"user_{current_user.id}")
+        os.makedirs(temp_dir, exist_ok=True)
+
         safe_filename = f"{uuid.uuid4().hex}_{file.filename}"
-        file_path = os.path.join(user_folder, safe_filename)
+        file_path = os.path.join(temp_dir, safe_filename)
+
+        # 2. 物理落盘至临时目录
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
@@ -135,6 +140,11 @@ async def chat_channel(
             f"将该路径数据存入向量知识库，或者调用 'backup_local_file' 将该路径记录入备忘录。]"
         )
         final_prompt_to_llm += f"\n\n{hidden_ctx}"
+
+        encoded_path = urllib.parse.quote(file_path)
+        meta_payload["is_file"] = True
+        meta_payload["file_name"] = file.filename
+        meta_payload["download_url"] = f"/api/file/download?path={encoded_path}"
 
     # 3. 查出智能体配置与历史记录
     agent_config = sys_db.query(models.AgentConfig).filter(models.AgentConfig.id == session.agent_id).first()
@@ -170,16 +180,16 @@ async def chat_channel(
                 yield sse_chunk
 
             # --- 流结束，写入数据库 ---
-            meta_payload = {}
-            if hidden_ctx: meta_payload["hidden_context"] = hidden_ctx
-            if full_reasoning: meta_payload["reasoning_content"] = full_reasoning
-            if used_tools: meta_payload["used_tools"] = used_tools  # 🌟存入数据库！
+            ai_meta = {}
+            if hidden_ctx: ai_meta["hidden_context"] = hidden_ctx
+            if full_reasoning: ai_meta["reasoning_content"] = full_reasoning
+            if used_tools: ai_meta["used_tools"] = used_tools  # 🌟存入数据库！
 
             # 👑【核心修复 1】：使用传入的局部变量 session_id，而不是 session.id
             new_user_log = models.ChatLog(session_id=session_id, role="user", content=user_message,
                                           metadata_=meta_payload)
             new_ai_log = models.ChatLog(session_id=session_id, role="assistant", content=full_reply,
-                                        metadata_=meta_payload)
+                                        metadata_=ai_meta)
             sys_db.add_all([new_user_log, new_ai_log])
             sys_db.commit()
 
@@ -219,38 +229,24 @@ def get_allowed_tools(
 ):
     """供前端智能体创建弹窗使用：列出我可以勾选哪些工具"""
 
-    # 直接调用鉴权工厂：传入 sys_db 和用户 id
     allowed_tool_names = get_user_permissions(db, current_user.id)
 
     tools_info = []
     for t_name in allowed_tool_names:
-        # 这里为了友好展示，依然做个简单的映射
-        name_map = {
-            "base_learn": "学习文本入库",
-            "base_search": "搜索专属知识",
-            "base_clear": "清空专属知识",
-            "note_create": "新建笔记记录",
-            "note_view": "查看全部笔记",
-            "note_edit": "修改已有笔记",
-            "note_delete": "删除指定笔记",
-            "profile_upsert": "记忆习惯偏好",
-            "profile_view": "查看习惯偏好",
-            "profile_delete": "遗忘习惯偏好",
-            "base_learn_file": "解析物理文件入库",
-            "base_backup_file": "物理文件网盘备份",
-            "base_table": "结构化数据表格",
-            "vip_data_chart": "高级数据统计图",
-            "vip_mindmap": "高级思维导图"
-        }
-        tools_info.append({
-            "id": t_name,
-            "name": name_map.get(t_name, t_name),
-            # 【修复点】：Python 的字符串方法是 startswith (全小写)
-            "is_vip": t_name.startswith('vip_')
-        })
+        # 2. 从全局实例 TOOL_BUILDERS 中抓取函数对象
+        builder_func = TOOL_BUILDERS.get(t_name)
+        if builder_func:
+            # 3. 🌟 直接读取绑定在函数身上的属性，实现彻底的动态解耦！
+            friendly_name = getattr(builder_func, "friendly_name", t_name)
+            required_role = getattr(builder_func, "required_role", "user")
+
+            tools_info.append({
+                "id": t_name,
+                "name": friendly_name,
+                "is_vip": required_role == "vip"
+            })
 
     return {"status": "success", "tools": tools_info}
-
 
 # (同时补齐智能体的 删除 和 修改 接口)
 class AgentUpdate(BaseModel):

@@ -9,6 +9,7 @@ from core import ai_service
 from langchain_huggingface import HuggingFaceEmbeddings
 from config import LOCAL_MODEL_PATH, CHUNK_SIZE, CHUNK_OVERLAP
 import urllib.parse # 用于 URL 编码
+import shutil
 
 print("⚙️ [Tool Registry] 正在加载全局 Embedding 模型...")
 embeddings_model = HuggingFaceEmbeddings(model_name=LOCAL_MODEL_PATH)
@@ -17,9 +18,15 @@ embeddings_model = HuggingFaceEmbeddings(model_name=LOCAL_MODEL_PATH)
 TOOL_BUILDERS: Dict[str, Callable] = {}
 
 
-def register_tool(tool_name: str):
+def register_tool(tool_id: str, friendly_name: str, required_role: str = "user"):
     def decorator(builder_func):
-        TOOL_BUILDERS[tool_name] = builder_func
+        # 利用 Python 特性，直接把元数据当做属性，强行绑在函数对象上！
+        # 这样绝不破坏原有的 TOOL_BUILDERS.get(name) 函数调用
+        builder_func.tool_id = tool_id
+        builder_func.friendly_name = friendly_name
+        builder_func.required_role = required_role
+
+        TOOL_BUILDERS[tool_id] = builder_func
         return builder_func
 
     return decorator
@@ -78,7 +85,7 @@ class ClearKnowledgeInput(BaseModel):
 # ==========================================
 
 # --- 🚀 模块 A：向量知识库工具 ---
-@register_tool("base_learn")
+@register_tool("base_learn", "学习文本入库")
 def build_learn_tool(db: Session, user_id: int):
     @tool("learn_from_material", args_schema=LearnMaterialInput)
     def learn_tool(material_text: str) -> str:
@@ -97,7 +104,7 @@ def build_learn_tool(db: Session, user_id: int):
     return learn_tool
 
 
-@register_tool("base_search")
+@register_tool("base_search", "搜索专属知识")
 def build_search_tool(db: Session, user_id: int):
     @tool("search_personal_knowledge", args_schema=SearchKnowledgeInput)
     def search_tool(query: str) -> str:
@@ -113,7 +120,7 @@ def build_search_tool(db: Session, user_id: int):
     return search_tool
 
 
-@register_tool("base_clear")
+@register_tool("base_clear", "清空专属知识")
 def build_clear_tool(db: Session, user_id: int):
     @tool("clear_all_knowledge", args_schema=ClearKnowledgeInput)
     def clear_knowledge_tool(confirm_text: str) -> str:
@@ -127,7 +134,7 @@ def build_clear_tool(db: Session, user_id: int):
 
 
 # --- 📓 模块 B：用户笔记 CRUD 工具 ---
-@register_tool("note_create")
+@register_tool("note_create", "新建笔记记录")
 def build_note_create(db: Session, user_id: int):
     @tool("create_note", args_schema=CreateNoteInput)
     def create_tool(topic: str, json_data_str: str) -> str:
@@ -141,7 +148,7 @@ def build_note_create(db: Session, user_id: int):
     return create_tool
 
 
-@register_tool("note_view")
+@register_tool("note_view", "查看全部笔记")
 def build_note_view(db: Session, user_id: int):
     @tool("view_notes", args_schema=ViewNotesInput)
     def view_tool(note_id: Optional[int] = None, keyword: Optional[str] = None) -> str:
@@ -163,7 +170,7 @@ def build_note_view(db: Session, user_id: int):
     return view_tool
 
 
-@register_tool("note_edit")
+@register_tool("note_edit", "修改已有笔记")
 def build_note_edit(db: Session, user_id: int):
     @tool("edit_note", args_schema=EditNoteInput)
     def edit_tool(note_id: int, topic: str, json_data_str: str) -> str:
@@ -179,7 +186,7 @@ def build_note_edit(db: Session, user_id: int):
     return edit_tool
 
 
-@register_tool("note_delete")
+@register_tool("note_delete", "删除指定笔记")
 def build_note_delete(db: Session, user_id: int):
     @tool("delete_note", args_schema=DeleteNoteInput)
     def delete_tool(note_id: int) -> str:
@@ -195,7 +202,7 @@ def build_note_delete(db: Session, user_id: int):
 
 
 # --- 🏷️ 模块 C：用户画像 (Profiles) 标签管理工具 ---
-@register_tool("profile_upsert")
+@register_tool("profile_upsert", "记忆习惯偏好")
 def build_profile_upsert(db: Session, user_id: int):
     @tool("update_user_habit", args_schema=UpsertProfileInput)
     def upsert_tool(key: str, value: str) -> str:
@@ -209,7 +216,7 @@ def build_profile_upsert(db: Session, user_id: int):
     return upsert_tool
 
 
-@register_tool("profile_view")
+@register_tool("profile_view", "查看习惯偏好")
 def build_profile_view(db: Session, user_id: int):
     @tool("view_user_habits", args_schema=ViewProfileInput)
     def view_tool(tag_key: Optional[str] = None) -> str:
@@ -226,7 +233,7 @@ def build_profile_view(db: Session, user_id: int):
     return view_tool
 
 
-@register_tool("profile_delete")
+@register_tool("profile_delete", "遗忘习惯偏好")
 def build_profile_delete(db: Session, user_id: int):
     @tool("delete_user_habit", args_schema=DeleteProfileInput)
     def delete_tool(tag_key: str) -> str:
@@ -257,7 +264,7 @@ class BackupFileInput(BaseModel):
 # ==========================================
 # 2. 修改：从本地路径读取并学习的智能体工具
 # ==========================================
-@register_tool("base_learn_file")
+@register_tool("base_learn_file", "解析物理文件入库")
 def build_learn_file_tool(db: Session, user_id: int):
     @tool("learn_from_local_file", args_schema=LearnLocalFileInput)
     def learn_file_tool(file_path: str) -> str:
@@ -292,7 +299,7 @@ def build_learn_file_tool(db: Session, user_id: int):
 # ==========================================
 # 3. 新增：只是备份并不向量化的工具
 # ==========================================
-@register_tool("base_backup_file")
+@register_tool("base_backup_file", "物理文件网盘备份")
 def build_backup_file_tool(db: Session, user_id: int):
     @tool("backup_local_file", args_schema=BackupFileInput)
     def backup_file_tool(file_path: str, file_name: str, backup_reason: str) -> str:
@@ -301,8 +308,19 @@ def build_backup_file_tool(db: Session, user_id: int):
             return f"备份确认失败：物理路径 {file_path} 不存在。"
 
         try:
-            # 【完美体验】：自动计算好下载链接并存入数据库！
-            encoded_path = urllib.parse.quote(file_path)
+            # 🌟【核心修改】：执行物理迁移！
+            # 2. 准备持久化目录路径 (uploads/user_id/)
+            persistent_dir = os.path.join(os.getcwd(), "uploads", f"user_{user_id}")
+            os.makedirs(persistent_dir, exist_ok=True)
+
+            # 3. 构造新的持久化文件名
+            persistent_path = os.path.join(persistent_dir, f"backup_{os.path.basename(file_path)}")
+
+            # 4. 将文件从 /tmp 拷贝到 /uploads 文件夹下
+            shutil.copy2(file_path, persistent_path)
+
+            # 5. 生成基于“持久化路径”的下载链接
+            encoded_path = urllib.parse.quote(persistent_path)
             download_link = f"/api/file/download?path={encoded_path}"
 
             note_data = {
@@ -366,7 +384,7 @@ class GenerateChartInput(BaseModel):
 
 
 # --- 👑 专属：高级思维导图工具 ---
-@register_tool("vip_mindmap")
+@register_tool("vip_mindmap", "高级思维导图", required_role="vip")
 def build_mindmap_tool(db: Session, user_id: int):
     @tool("create_vip_mindmap", args_schema=GenerateMindmapInput)
     def mindmap_tool(topic: str, mindmap_json_str: str) -> str:
@@ -394,7 +412,7 @@ def build_mindmap_tool(db: Session, user_id: int):
 
 
 # --- 📊 专属：高级数据统计图工具 ---
-@register_tool("vip_data_chart")
+@register_tool("vip_data_chart", "高级数据统计图", required_role="vip")
 def build_data_chart_tool(db: Session, user_id: int):
     @tool("create_data_chart", args_schema=GenerateChartInput)
     def chart_tool(topic: str, chart_json_str: str) -> str:
@@ -441,7 +459,7 @@ class GenerateTableInput(BaseModel):
     """)
 
 
-@register_tool("base_table")
+@register_tool("base_table", "结构化数据表格")
 def build_table_tool(db: Session, user_id: int):
     @tool("create_data_table", args_schema=GenerateTableInput)
     def table_tool(topic: str, table_json_str: str) -> str:

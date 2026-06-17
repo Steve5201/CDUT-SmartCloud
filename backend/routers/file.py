@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from jose import jwt
-
+import tempfile # 确保头部引入
+from starlette import status
 from core.database import get_sys_db
 from core import models
 from core.security import SECRET_KEY, ALGORITHM
@@ -35,14 +36,18 @@ def download_backup_file(
     except Exception:
         raise auth_exception
 
-    # 严格的安全校验：路径必须以该用户的专属文件夹开头！
     abs_path = os.path.abspath(path)
-    user_prefix = os.path.abspath(os.path.join(os.getcwd(), f"uploads/user_{user_id}"))
 
-    if not abs_path.startswith(user_prefix):
+    # 🌟【修改点 1】：同时计算出“持久网盘前缀”和“临时缓存前缀”
+    user_prefix = os.path.abspath(os.path.join(os.getcwd(), f"uploads/user_{user_id}"))
+    temp_prefix = os.path.abspath(os.path.join(tempfile.gettempdir(), "cdut_temp", f"user_{user_id}"))
+
+    # 🌟【修改点 2】：安全防线：路径必须在这两个前缀之一开头！
+    if not abs_path.startswith(user_prefix) and not abs_path.startswith(temp_prefix):
         raise HTTPException(status_code=403, detail="越权警告：你无权下载此文件！")
 
+    # 🌟【修改点 3】：核心体验：如果文件不存在，提示已过期
     if not os.path.exists(abs_path):
-        raise HTTPException(status_code=404, detail="文件不存在或已被删除")
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="下载失败：该临时文件在服务器上已过期或被清理。")
 
     return FileResponse(abs_path, filename=os.path.basename(abs_path))

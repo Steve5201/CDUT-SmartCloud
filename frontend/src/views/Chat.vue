@@ -27,6 +27,7 @@
       :agents="agentList"
       :currentAgentId="currentAgentId"
       :activeAgentDetails="currentAgentDetails"
+      :isSessionActive="!!currentSessionId"
       @change-agent="handleAgentChange"
       @open-create-modal="openAgentModal('create')"
       @edit-agent="openAgentModal('edit', $event)"
@@ -162,8 +163,33 @@ const fetchSessions = async () => {
 // 修改 src/views/Chat.vue 中的 handleSelectSession
 
 const handleSelectSession = async (id) => {
+  // ===================================================
+  // 🌟【核心修复】：如果 id 为空（说明用户点击了探索大厅首页）
+  // 瞬间重置清空所有状态，并【直接返回】，绝对不去呼叫后端历史接口！
+  // ===================================================
+  if (id === null || id === undefined) {
+    currentSessionId.value = null
+    messageList.value = []
+    // 顺便将右侧智能体重置为默认的第一个
+    if (agentList.value.length > 0) {
+      currentAgentId.value = agentList.value[0].id
+      currentAgentDetails.value = agentList.value[0]
+    }
+    return
+  }
   currentSessionId.value = id
   messageList.value = []
+  // 1. 从左侧列表中，找出你当前点击的这个会话对象
+  const selectedSession = sessionList.value.find(s => s.id === id)
+
+  if (selectedSession && selectedSession.agent_id) {
+    // 2. 自动将右侧下拉框的值，切换为该会话绑定的智能体 ID
+    currentAgentId.value = selectedSession.agent_id
+    // 3. 自动将右侧卡片，同步更新为该智能体的最新详情数据
+    currentAgentDetails.value = agentList.value.find(a => a.id === selectedSession.agent_id) || null
+    console.log(`🎯 [UI Sync] 会话 ${id} 已与智能体 ${selectedSession.agent_id} 自动对齐绑定！`)
+  }
+
   try {
     const res = await api.get(`/api/sessions/${id}/history`)
 
@@ -237,11 +263,44 @@ const handleDeleteSession = async (id) => {
 // 修改 src/views/Chat.vue 中的 handleSendMessage 流式响应函数
 
 const handleSendMessage = async ({ text, file }) => {
+  messageList.value.push({
+    role: 'user',
+    content: text,
+    is_file: !!file,
+    file_name: file ? file.name : '',
+    download_url: '' // 刚发出去时没有 URL，等下刷列表就会有了，不影响体验
+  })
+
+  let targetSessionId = currentSessionId.value
+
+  // ===================================================
+  // 🌟【最酷的自适应闭环】：如果是在首页直接提问，默默在后台建新对话！
+  // ===================================================
+  if (targetSessionId === null) {
+    if (!currentAgentId.value) {
+      message.warning('请先在右侧选择一个智能体！')
+      return
+    }
+    try {
+      // 1. 静默调用后端，用当前选中的智能体开辟聊天室！
+      const res = await api.post('/api/sessions', {
+        agent_id: currentAgentId.value,
+        title: "新对话"
+      })
+
+      targetSessionId = res.session_id
+      currentSessionId.value = res.session_id
+
+      // 3. 异步拉取一次左侧会话菜单（让那个“新对话”在左边冒出来）
+      await fetchSessions()
+    } catch (e) {
+      message.error('无法自动创建会话，请重试')
+      return
+    }
+  }
   // 1. 用户气泡
   messageList.value.push({ role: 'user', content: text })
-
-  // 2. 🌟【核心】：预备一个初始化的空 AI 气泡
-  const aiIndex = messageList.value.length
+  const tempAiIndex = messageList.value.length
   messageList.value.push({
     role: 'assistant',
     content: '',                  // 正式回答
@@ -254,15 +313,14 @@ const handleSendMessage = async ({ text, file }) => {
 
   isSending.value = true
 
-  // 3. 构建表单数据
-  const formData = new FormData()
-  formData.append('session_id', currentSessionId.value)
-  formData.append('user_message', text)
-  if (file) formData.append('file', file)
-
   try {
+    // 3. 构建表单数据
+    const formData = new FormData()
+    formData.append('session_id', targetSessionId)
+    formData.append('user_message', text)
+    if (file) formData.append('file', file)
     // 4. 【核心重构】：抛弃 Axios，使用原生 fetch 开启流式链接！
-    const response = await fetch('http://127.0.0.1:8000/api/chat', {
+    const response = await fetch(`${api.defaults.baseURL}/api/chat`, {
       method: 'POST',
       headers: {
         // 手动戴上鉴权手环！
@@ -293,7 +351,7 @@ const handleSendMessage = async ({ text, file }) => {
             const payload = JSON.parse(line.substring(6))
             const type = payload.type
             const data = payload.data
-            const msgRef = messageList.value[aiIndex]
+            const msgRef = messageList.value[tempAiIndex]
 
             // --- A. 思考流 ---
             if (type === 'reasoning') {
@@ -340,7 +398,7 @@ const handleSendMessage = async ({ text, file }) => {
     await fetchSessions()
 
   } catch (error) {
-    messageList.value[aiIndex].content = '❌ 连接服务器失败，请检查网络。'
+    messageList.value[tempAiIndex].content = '❌ 连接服务器失败，请检查网络。'
   } finally {
     isSending.value = false
   }

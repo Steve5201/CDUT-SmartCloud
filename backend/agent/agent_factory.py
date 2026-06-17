@@ -1,33 +1,43 @@
 # agent_factory.py
 from sqlalchemy.orm import Session
 from core import models
-from agent.tool_registry import TOOL_BUILDERS
+# 确保引入我们最爱且保持未变的 TOOL_BUILDERS 全局实例
+from tool_registry import TOOL_BUILDERS
 
 
 def get_user_permissions(sys_db: Session, user_id: int) -> list[str]:
-    """严格的后台查表鉴权"""
-    allowed_tools = [
-        "base_learn", "base_search", "base_clear",
-        "note_create", "note_view", "note_edit", "note_delete",
-        "profile_upsert", "profile_view", "profile_delete",
-        "base_learn_file", "base_backup_file", "base_table"
-    ]
-
+    """
+    【升级且保留】：动态计算该用户有权使用的工具 ID 列表。
+    供 assemble_agent_tools (装配流水线) 和 /api/agents/tools (前端下拉多选接口) 共享调用。
+    """
+    # 1. 查出用户在系统库中的真实 role
     user = sys_db.query(models.User).filter(models.User.id == user_id).first()
-    if user and user.role == "vip":
-        print(f"💎 检测到 VIP 用户 [{user.username}]，解锁高级工具...")
-        allowed_tools.append("vip_mindmap")
-        allowed_tools.append("vip_data_chart")
+    user_role = user.role if user else "user"
+
+    # 2. 划定允许的权限桶
+    allowed_roles = ["user"]
+    if user_role == "vip":
+        allowed_roles.append("vip")
+
+    # 3. 🌟【核心重构】：遍历 TOOL_BUILDERS，利用 getattr 安全抓取函数身上的 required_role 属性进行过滤！
+    allowed_tools = []
+    for tool_id, builder_func in TOOL_BUILDERS.items():
+        # 如果函数身上没写 required_role，默认当做最安全的 "user" 处理
+        req_role = getattr(builder_func, "required_role", "user")
+        if req_role in allowed_roles:
+            allowed_tools.append(tool_id)
 
     return allowed_tools
 
 
 def assemble_agent_tools(sys_db: Session, ai_db: Session, user_id: int, configured_tools: list[str] = None) -> list:
-    """装配流水线"""
-    # 1. 用 sys_db 查权限
+    """
+    装配流水线
+    """
+    # 1. 直接调用上面的权限拦截函数（实现了高度的代码复用和解耦！）
     user_max_permissions = get_user_permissions(sys_db, user_id)
 
-    # 2. 算交集
+    # 2. 计算交集
     target_tools = user_max_permissions
     if configured_tools is not None:
         target_tools = [t for t in user_max_permissions if t in configured_tools]

@@ -60,6 +60,16 @@
               </div>
             </div>
 
+            <!-- 🌟【新增】：如果是用户上传的文件，渲染精致的文件芯片 -->
+            <div v-if="msg.metadata?.is_file || msg.is_file" class="history-file-chip-wrapper">
+              <div class="history-file-chip">
+                <paper-clip-outlined class="file-icon" />
+                <!-- 动态绑定我们的拼接下载函数 -->
+                <a :href="getFileDownloadUrl(msg.metadata?.download_url || msg.download_url)" target="_blank" class="file-link">
+                  {{ msg.metadata?.file_name || msg.file_name }} (点击下载)
+                </a>
+              </div>
+            </div>
             <!-- ============================================== -->
             <!-- 💬 正式内容渲染区：普通文本、Markdown 与图表 -->
             <!-- ============================================== -->
@@ -71,7 +81,7 @@
     </a-layout-content>
 
     <!-- 多模态输入区 -->
-    <div class="unified-input-area" :class="{ 'disabled-area': !activeSessionId }" @dragover.prevent @drop.prevent="handleFileDrop">
+    <div class="unified-input-area" @dragover.prevent @drop.prevent="handleFileDrop">
       <div class="input-container">
         <div v-if="selectedFile" class="file-preview-chip">
           <paper-clip-outlined class="file-icon" />
@@ -80,13 +90,19 @@
         </div>
 
         <div class="input-action-wrapper">
-          <a-textarea v-model:value="inputText" placeholder="输入您的问题，支持拖拽文件至此" :auto-size="{ minRows: 1, maxRows: 6 }" :bordered="false" class="seamless-textarea" :disabled="!activeSessionId" @keydown.enter.prevent="handleSend" />
-
+          <a-textarea
+            v-model:value="inputText"
+            :placeholder="!activeSessionId ? '选好右侧智能体，直接在此提问即可开启新对话...' : '输入您的问题，支持拖拽文件，Enter 发送'"
+            :auto-size="{ minRows: 1, maxRows: 6 }"
+            :bordered="false"
+            class="seamless-textarea"
+            @keydown.enter.exact.prevent="handleSend"
+          />
           <div class="action-toolbar">
-            <a-upload :before-upload="handleFileUpload" :show-upload-list="false" :disabled="!activeSessionId">
+            <a-upload :before-upload="handleFileUpload" :show-upload-list="false">
               <a-button shape="circle" type="text" class="upload-btn"><paper-clip-outlined style="font-size: 20px;" /></a-button>
             </a-upload>
-            <a-button type="primary" shape="round" class="send-btn" :disabled="!activeSessionId" :loading="isSending" @click="handleSend">
+            <a-button type="primary" shape="round" class="send-btn" :loading="isSending" @click="handleSend">
               <send-outlined v-if="!isSending" /> 发送
             </a-button>
           </div>
@@ -101,6 +117,14 @@
 import { ref, nextTick, watch } from 'vue'
 import { UserOutlined, RobotOutlined, PaperClipOutlined, CloseCircleFilled, SendOutlined } from '@ant-design/icons-vue'
 import MessageRenderer from '../MessageRenderer.vue'
+import api from '../../../api/index' // 确保引入了 api
+
+const getFileDownloadUrl = (relativeUrl) => {
+  if (!relativeUrl) return '#'
+  const token = localStorage.getItem('access_token')
+  // 🌟 自动补全为后端的绝对 IP 端口，并挂上 Token
+  return `${api.defaults.baseURL}${relativeUrl}&token=${token}`
+}
 
 const props = defineProps({
   messages: Array,
@@ -297,6 +321,33 @@ const handleSend = () => {
   padding-left: 10px;
   margin-top: 6px;
   line-height: 1.6;
+}
+
+/* 🌟 用户气泡内的历史文件芯片美化 */
+.history-file-chip-wrapper {
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: flex-end; /* 让文件靠右对齐 */
+}
+
+.history-file-chip {
+  background-color: rgba(255, 255, 255, 0.2); /* 磨砂半透明白，融入蓝色气泡 */
+  padding: 6px 12px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.history-file-chip .file-icon {
+  color: #fff;
+  margin-right: 8px;
+}
+
+.history-file-chip .file-link {
+  color: #fff !important;
+  font-size: 13px;
+  text-decoration: underline;
 }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

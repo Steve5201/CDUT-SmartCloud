@@ -1,12 +1,13 @@
 <!-- src/components/layout/RightAgentPanel.vue -->
 <template>
-  <a-layout-sider width="320" class="right-sider" theme="light" collapsible collapsedWidth="0" :reverseArrow="true">
+  <a-layout-sider width="320" class="right-sider" theme="light" breakpoint="md" collapsible collapsedWidth="0" :reverseArrow="true">
     <div class="agent-control-header">
       <h3>🤖 智能体管控舱</h3>
       <a-select
         :value="currentAgentId"
         style="width: 100%"
         placeholder="切换智能体"
+        :disabled="isSessionActive"
         @change="$emit('change-agent', $event)"
       >
         <a-select-option v-for="agent in agents" :key="agent.id" :value="agent.id">
@@ -87,7 +88,8 @@ import { PlusCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/ic
 defineProps({
   agents: Array,
   currentAgentId: [String, Number],
-  activeAgentDetails: Object
+  activeAgentDetails: Object,
+  isSessionActive: Boolean
 })
 
 defineEmits(['change-agent', 'open-create-modal', 'edit-agent', 'delete-agent'])
