@@ -106,7 +106,7 @@ from fastapi.responses import StreamingResponse  # 🌟 引入 FastAPI 专属流
 @router.post("/api/chat", summary="发送消息给智能体 (全异步流式通道)")
 async def chat_channel(
         session_id: int = Form(...),
-        user_message: str = Form(""), 
+        user_message: str = Form(""),
         file: Optional[UploadFile] = File(None),
         current_user: models.User = Depends(get_current_user),
         sys_db: Session = Depends(get_sys_db),

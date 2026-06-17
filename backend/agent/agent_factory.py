@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from core import models
 # 确保引入我们最爱且保持未变的 TOOL_BUILDERS 全局实例
-from tool_registry import TOOL_BUILDERS
+from agent.tool_registry import TOOL_BUILDERS
 
 
 def get_user_permissions(sys_db: Session, user_id: int) -> list[str]:
