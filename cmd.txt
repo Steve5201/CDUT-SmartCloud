@@ -1,0 +1,7 @@
+systemctl restart smartcloud-backend
+
+cd ~/CDUT-SmartCloud
+git pull
+rm -rf /var/www/html/smartcloud/*
+cp -r frontend/dist/* /var/www/html/smartcloud/
+systemctl restart nginx
