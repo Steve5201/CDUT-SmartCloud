@@ -5,20 +5,30 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/chat' // 默认如果访问根目录，直接扔到聊天界面去
+    // 🌟 动态重定向根目录
+    redirect: () => {
+      const role = localStorage.getItem('user_role')
+      return role === 'admin' ? '/admin' : '/chat'
+    }
   },
   {
     path: '/login',
     name: 'Login',
-    // 采用懒加载模式（性能优化手段，只有访问到这个网址才去加载对应 Vue 文件）
     component: () => import('../views/Login.vue')
   },
   {
     path: '/chat',
     name: 'Chat',
     component: () => import('../views/Chat.vue'),
-    // 这是一个元数据标记，告诉路由守卫：这个页面需要身份验证！
-    meta: { requiresAuth: true }
+    // 🌟 增加允许进入的角色白名单
+    meta: { requiresAuth: true, allowedRoles: ['user', 'vip'] }
+  },
+  {
+    // 🌟 新增运维大屏路由
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('../views/Admin.vue'),
+    meta: { requiresAuth: true, allowedRoles: ['admin'] }
   }
 ]
 
@@ -30,19 +40,27 @@ const router = createRouter({
 
 // 3. 🛡️ 全局前置路由守卫 (Global Before Guard)
 router.beforeEach((to, from, next) => {
-  // 看一看将要去的页面（to）身上有没有 requiresAuth 标记
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  // 看一看用户的口袋里有没有通行证
   const token = localStorage.getItem('access_token')
+  const userRole = localStorage.getItem('user_role')
 
-  if (requiresAuth && !token) {
-    // 如果页面需要权限，且用户没票，一脚踢回登录页！
-    next('/login')
-  } else if (to.path === '/login' && token) {
-    // 如果用户有票了，还非要往登录页跑，直接扔进大厅（聊天页）！
-    next('/chat')
-  } else {
-    // 否则，正常放行
+  if (requiresAuth) {
+    // 没票，踢回登录
+    if (!token) return next('/login')
+
+    // 🌟 有票，但走错了门（角色不匹配）
+    if (to.meta.allowedRoles && !to.meta.allowedRoles.includes(userRole)) {
+      return next(userRole === 'admin' ? '/admin' : '/chat')
+    }
+
+    // 有票且走对门，放行
+    next()
+  }
+  else if (to.path === '/login' && token) {
+    // 已经登录了还去登录页，遣返回各自的大本营
+    next(userRole === 'admin' ? '/admin' : '/chat')
+  }
+  else {
     next()
   }
 })

@@ -26,6 +26,18 @@ const props = defineProps({
 const containerId = ref(uniqueId('g6-container-'))
 let graph = null
 
+const calcNodeSize = (label) => {
+  if (!label) return [90, 36];
+  let width = 0;
+  for (let i = 0; i < label.length; i++) {
+    // 字符编码大于 255 的是中文/表情（占13px），否则是英文字母/半角（占8px）
+    width += label.charCodeAt(i) > 255 ? 13 : 8;
+  }
+  // 最小宽度 90px，两边各留 12px 的空隙 (width + 24)
+  const finalWidth = Math.max(90, width + 24);
+  return [finalWidth, 36]; // 高度固定为 36 即可，更美观
+}
+
 onMounted(() => {
   // 1. 初始化 G6 树图 (TreeGraph)
   graph = new G6.TreeGraph({
@@ -39,8 +51,8 @@ onMounted(() => {
     defaultNode: {
       type: 'rect',
       // 1. 加大节点的宽度，从 100 加到 160
-      size: [160, 40],
-      style: { fill: '#e6f7ff', stroke: '#1890ff', radius: 4 },
+      style: { fill: '#f0f5ff', stroke: '#1890ff', radius: 4 },
+      // style: { fill: '#e6f7ff', stroke: '#1890ff', radius: 4 },
       labelCfg: {
         style: {
           fill: '#333',
@@ -56,11 +68,13 @@ onMounted(() => {
       style: { stroke: '#91d5ff', lineWidth: 2 }
     },
     layout: {
-      type: 'compactBox',
-      direction: 'LR', // 从左到右布局
+      type: 'mindmap',
+      direction: 'H',
+      // direction: 'LR', // 从左到右布局
       getId: d => d.id,
       getHeight: () => 40,
-      getWidth: () => 100,
+      // getWidth: () => 100,
+      getWidth: d => calcNodeSize(d.label)[0], // 告诉布局器每个节点的动态宽度
       getVGap: () => 20,
       getHGap: () => 80
     }
@@ -70,6 +84,18 @@ onMounted(() => {
   // G6 要求的格式是 { id: 'root', label: 'xxx', children: [...] }
   // 我们的大模型在 tools 里的规范也是严格按这个来的
   graph.data(props.chartData)
+  graph.node((node) => {
+    const [width, height] = calcNodeSize(node.label);
+    return {
+      size: [width, height],
+      labelCfg: {
+        style: {
+          // 限制标签的最大渲染宽度，防万一
+          width: width - 10,
+        }
+      }
+    };
+  });
   graph.render()
 
   graph.fitView(20) // 留 20px 的 padding

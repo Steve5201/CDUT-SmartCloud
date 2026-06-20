@@ -123,9 +123,14 @@ const handleLogin = async () => {
     message.success('登录成功，欢迎回来！')
     // 将拿到的入场券存入本地浏览器
     localStorage.setItem('access_token', res.access_token)
+    localStorage.setItem('user_role', res.role)
 
     // 跳转到聊天大厅！
-    router.push('/chat')
+    if (res.role === 'admin') {
+      router.push('/admin') // 运维管理大屏
+    } else {
+      router.push('/chat')  // C端聊天大厅
+    }
   } catch (error) {
     // api 拦截器已经处理了报错弹窗，这里无需额外处理
   } finally {

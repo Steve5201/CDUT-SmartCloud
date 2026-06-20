@@ -47,3 +47,25 @@ def get_ai_db():
         yield db
     finally:
         db.close()
+
+
+# 使用 cdut_superuser 连接系统库（通过它可以切入到其他库的管理）
+ADMIN_SYS_DB_URL = "postgresql://cdut_superuser:cdut_super_123@localhost:5432/cdut_sys_db"
+ADMIN_AI_DB_URL = "postgresql://cdut_superuser:cdut_super_123@localhost:5432/cdut_ai_db"
+
+admin_sys_engine = create_engine(ADMIN_SYS_DB_URL, echo=False)
+admin_ai_engine = create_engine(ADMIN_AI_DB_URL, echo=False)
+
+AdminSysSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=admin_sys_engine)
+AdminAiSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=admin_ai_engine)
+
+# 提供给 FastAPI 路由使用的依赖注入
+def get_admin_sys_db():
+    db = AdminSysSessionLocal()
+    try: yield db
+    finally: db.close()
+
+def get_admin_ai_db():
+    db = AdminAiSessionLocal()
+    try: yield db
+    finally: db.close()
