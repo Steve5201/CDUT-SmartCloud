@@ -256,7 +256,7 @@ class AgentUpdate(BaseModel):
     description: Optional[str] = None
     system_prompt: Optional[str] = None
     provider: Optional[str] = None
-    model_name: Optional[str] = None
+    agent_model_name: Optional[str] = None
     base_url: Optional[str] = None
     plain_api_key: Optional[str] = None
     tools_config: Optional[list[str]] = None
@@ -279,7 +279,9 @@ def update_custom_agent(
     if not agent:
         raise HTTPException(status_code=403, detail="未找到智能体或无权修改")
 
-    update_data = req.dict(exclude_unset=True)
+    update_data = req.model_dump(exclude_unset=True)
+    print(req)
+    print(update_data)
     if "plain_api_key" in update_data:
         # 如果传了新的 key，就重新加密覆盖
         if update_data["plain_api_key"]:
