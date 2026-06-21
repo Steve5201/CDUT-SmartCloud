@@ -4,7 +4,7 @@ os.environ["PGCLIENTENCODING"] = "utf-8" # 强制底层 PG 客户端使用 UTF-8
 
 from sqlalchemy.orm import Session
 from core.database import (
-    sys_engine, ai_engine, expert_engine,
+    sys_engine, ai_engine, admin_expert_engine,
     SysBase, AiBase, ExpertBase,
     SysSessionLocal
 )
@@ -20,7 +20,7 @@ def create_tables():
     print("✅ AI 业务表创建完成！(knowledge_vectors, user_profiles, user_notes)")
 
     print("⏳ 正在 专家库 (cdut_expert_db) 中创建专家专属表...")
-    ExpertBase.metadata.create_all(bind=expert_engine)
+    ExpertBase.metadata.create_all(bind=admin_expert_engine)
     print("✅ 专家业务表创建完成！(expert_knowledge_vectors)")
 
 def init_system_default_agent():
