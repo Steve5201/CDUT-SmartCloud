@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from core.database import get_sys_db, get_ai_db
+from core.database import get_sys_db, get_ai_db, get_expert_db
 from core import models, sys_service, encryption
 from core.dependencies import get_current_user
 import traceback
@@ -110,7 +110,8 @@ async def chat_channel(
         file: Optional[UploadFile] = File(None),
         current_user: models.User = Depends(get_current_user),
         sys_db: Session = Depends(get_sys_db),
-        ai_db: Session = Depends(get_ai_db)
+        ai_db: Session = Depends(get_ai_db),
+        expert_db: Session = Depends(get_expert_db)
 ):
     # 1. 验证会话安全
     session = sys_db.query(models.ChatSession).filter(
@@ -153,7 +154,13 @@ async def chat_channel(
 
     # 4. 实例化异步引擎（传入 sys_db 用于内部装配时的 VIP 权限判定）
     from agent.engine import AsyncAgentEngine
-    engine = AsyncAgentEngine(sys_db=sys_db, ai_db=ai_db, config=agent_config, current_user_id=current_user.id)
+    engine = AsyncAgentEngine(
+        sys_db=sys_db,
+        ai_db=ai_db,
+        expert_db=expert_db,  # 🌟 送入大模型沙盒
+        config=agent_config,
+        current_user_id=current_user.id
+    )
 
     # ===================================================
     # 🌟【核心重构】：定义异步生成器，实时捕获大模型输出

@@ -42,7 +42,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const token = localStorage.getItem('access_token')
-  const userRole = localStorage.getItem('user_role')
+  const userRole = localStorage.getItem('user_role') || 'user'
 
   if (requiresAuth) {
     // 没票，踢回登录

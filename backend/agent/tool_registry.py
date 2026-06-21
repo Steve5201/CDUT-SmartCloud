@@ -282,6 +282,7 @@ def build_learn_file_tool(db: Session, user_id: int):
                 if text: full_text += text + "\n"
 
             from langchain_text_splitters import RecursiveCharacterTextSplitter
+            full_text = full_text.replace("\x00", "").replace("\u0000", "")
             splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
             chunks = splitter.split_text(full_text)
 

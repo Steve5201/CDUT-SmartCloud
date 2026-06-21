@@ -2,14 +2,14 @@
 
 // 1. 在这里导入所有独立开发的模块协议
 import DatabaseOps from './DatabaseOps'
-// import BizOps from './BizOps'       (未来开发好后取消注释)
-// import ExpertBase from './ExpertBase' (未来开发好后取消注释)
+import BizOps from './BizOps'
+import ExpertBase from './ExpertBase'
 
 // 2. 组装成数组，并按 order 排序
 const rawModules = [
   DatabaseOps,
-  // BizOps,
-  // ExpertBase
+  BizOps,
+  ExpertBase
 ]
 
 rawModules.sort((a, b) => a.order - b.order)

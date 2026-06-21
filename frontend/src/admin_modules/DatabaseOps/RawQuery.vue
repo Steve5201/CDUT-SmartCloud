@@ -5,9 +5,10 @@
     <!-- 1. 顶层紧凑操作区 -->
     <div class="control-panel">
       <a-space size="middle">
-        <a-select v-model:value="currentDb" style="width: 160px" @change="fetchTables">
-          <a-select-option value="sys">📦 核心系统库 (Sys)</a-select-option>
-          <a-select-option value="ai">🧠 智能体业务库 (AI)</a-select-option>
+        <a-select v-model:value="currentDb" style="width: 200px" @change="fetchTables">
+          <a-select-option value="sys">核心系统库 (Sys)</a-select-option>
+          <a-select-option value="ai">智能体业务库 (AI)</a-select-option>
+          <a-select-option value="admin">专业智能体业务库 (Admin)</a-select-option>
         </a-select>
 
         <a-select
@@ -21,7 +22,7 @@
 
         <a-select
           v-model:value="searchField"
-          style="width: 140px"
+          style="width: 200px"
           placeholder="检索字段"
           :options="searchFieldOptions"
           :disabled="!currentTable"

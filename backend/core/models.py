@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from pgvector.sqlalchemy import Vector
 
 # 引入我们刚才在 database.py 定义的双库基类
-from .database import SysBase, AiBase
+from .database import SysBase, AiBase, ExpertBase
 
 
 # ==========================================
@@ -136,4 +136,35 @@ class UserNote(AiBase):
     topic = Column(String(100), nullable=False)  # 比如："错题本", "高数思维导图数据"
     # 使用 JSONB，大模型可以把极其复杂的结构化数据全塞进来，前端直接读取渲染
     data = Column(JSONB, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+
+# ==========================================
+# 🎓 第三部分：公共专家核心业务表 (Expert Models)
+# ==========================================
+
+class ExpertKnowledgeSource(ExpertBase):
+    """【新增】专家知识来源追踪表（运维大屏里的书单列表）"""
+    __tablename__ = 'expert_knowledge_sources'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_id = Column(Integer, nullable=False, index=True) # 归属哪个大模型
+    source_name = Column(String(200), nullable=False)      # 用户自定义的有意义名字（如《微积分第一章》）
+    original_filename = Column(String(255), nullable=True) # 原始物理文件名
+    chunk_count = Column(Integer, default=0)               # 被切分了多少个向量块
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class ExpertKnowledgeVector(ExpertBase):
+    """专家级专属向量知识库表（极其纯净的公共资源池）"""
+    __tablename__ = 'expert_knowledge_vectors'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_id = Column(Integer, nullable=False, index=True)
+    source_id = Column(Integer, ForeignKey('expert_knowledge_sources.id', ondelete="CASCADE"), nullable=False)
+    page_content = Column(Text, nullable=False)
+    embedding = Column(Vector(768), nullable=False)
+
+    # 核心字段：必须包含 source，用于精细化删除
+    metadata_ = Column('metadata', JSONB, default={})
     created_at = Column(DateTime, default=datetime.now)

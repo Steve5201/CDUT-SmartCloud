@@ -3,7 +3,11 @@ import os
 os.environ["PGCLIENTENCODING"] = "utf-8" # 强制底层 PG 客户端使用 UTF-8 编码避免乱码报错
 
 from sqlalchemy.orm import Session
-from core.database import sys_engine, ai_engine, SysBase, AiBase, SysSessionLocal
+from core.database import (
+    sys_engine, ai_engine, expert_engine,
+    SysBase, AiBase, ExpertBase,
+    SysSessionLocal
+)
 from core import models
 
 def create_tables():
@@ -14,6 +18,10 @@ def create_tables():
     print("⏳ 正在 AI 库 (cdut_ai_db) 中创建智能体表...")
     AiBase.metadata.create_all(bind=ai_engine)
     print("✅ AI 业务表创建完成！(knowledge_vectors, user_profiles, user_notes)")
+
+    print("⏳ 正在 专家库 (cdut_expert_db) 中创建专家专属表...")
+    ExpertBase.metadata.create_all(bind=expert_engine)
+    print("✅ 专家业务表创建完成！(expert_knowledge_vectors)")
 
 def init_system_default_agent():
     """初始化注入：如果系统库里没有公共智能体，就自动创建一个"""
@@ -47,4 +55,4 @@ def init_system_default_agent():
 if __name__ == "__main__":
     create_tables()
     init_system_default_agent()
-    print("🎉 恭喜！双库架构物理建表与基础数据初始化全部成功！")
+    print("🎉 恭喜！数据库架构物理建表与基础数据初始化全部成功！")

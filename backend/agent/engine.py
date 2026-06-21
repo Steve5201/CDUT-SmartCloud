@@ -17,9 +17,10 @@ class AsyncAgentEngine:
     完美支持 DeepSeek-R1 思考模式与多轮工具调用的流式输出！
     """
 
-    def __init__(self, sys_db: Session, ai_db: Session, config: models.AgentConfig, current_user_id: int):
+    def __init__(self, sys_db: Session, ai_db: Session, expert_db: Session, config: models.AgentConfig, current_user_id: int):
         self.sys_db = sys_db
         self.ai_db = ai_db
+        self.expert_db = expert_db
         self.config = config
         self.user_id = current_user_id
 
@@ -32,7 +33,15 @@ class AsyncAgentEngine:
         self.client = AsyncOpenAI(api_key=api_key, base_url=self.config.base_url)
 
         # 3. 动态组装工具，并转化为 OpenAI 标准 Schema
-        self.langchain_tools = assemble_agent_tools(sys_db, ai_db, current_user_id, config.tools_config)
+        self.langchain_tools = assemble_agent_tools(
+            sys_db=self.sys_db,
+            ai_db=self.ai_db,
+            expert_db=self.expert_db,
+            user_id=self.user_id,
+            configured_tools=self.config.tools_config,
+            is_expert=self.config.is_public,
+            expert_agent_id=self.config.id
+        )
         self.openai_tools = [convert_to_openai_tool(t) for t in self.langchain_tools] if self.langchain_tools else None
         self.tool_map = {t.name: t for t in self.langchain_tools}
 
