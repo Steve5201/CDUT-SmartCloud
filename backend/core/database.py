@@ -75,6 +75,7 @@ def get_admin_ai_db():
 ADMIN_EXPERT_DB_URL = "postgresql://cdut_superuser:cdut_super_123@localhost:5432/cdut_expert_db"
 admin_expert_engine = create_engine(ADMIN_EXPERT_DB_URL, echo=False)
 AdminExpertSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=admin_expert_engine)
+ExpertBase = declarative_base()
 
 def get_admin_expert_db():
     db = AdminExpertSessionLocal()
