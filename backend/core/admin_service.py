@@ -54,17 +54,27 @@ def query_raw_table_data(db: Session, table_name: str, limit: int = 50, offset: 
 
 
 def update_raw_table_data(db: Session, table_name: str, record_id: int, update_data: dict) -> bool:
-    """动态更新任意表的任意字段 (拒绝修改 id)"""
+    """动态更新任意表的任意字段 (👑 完美自适应 PostgreSQL 强类型校验)"""
     if not update_data: return False
 
     # 剔除企图修改 ID 的恶意数据
     update_data.pop("id", None)
 
-    # 🌟【核心修复】：遍历所有要更新的字段，如果发现是 dict(字典) 或 list(列表)，
-    # 强制用 json.dumps 转换为标准 JSON 字符串，彻底根除 psycopg2 的 adapt 报错！
+    # 🌟【超级类型自适应转换】：
+    # 自动将前端的空字符串还原为数据库的 NULL，将字符串 "true" / "false" 还原为真正的布尔值！
     processed_data = {}
     for k, v in update_data.items():
-        if isinstance(v, (dict, list)):
+        if v == "" or v == "None" or v == "null":
+            # 如果是空字符串，转为 None（写入数据库即为 NULL），完美解决 INTEGER 无法写入 "" 的死锁！
+            processed_data[k] = None
+        elif isinstance(v, str) and v.lower() == "true":
+            # 字符串 "true" 转为真正的布尔值 True
+            processed_data[k] = True
+        elif isinstance(v, str) and v.lower() == "false":
+            # 字符串 "false" 转为真正的布尔值 False
+            processed_data[k] = False
+        elif isinstance(v, (dict, list)):
+            # JSONB 字段特殊序列化处理
             processed_data[k] = json.dumps(v, ensure_ascii=False)
         else:
             processed_data[k] = v

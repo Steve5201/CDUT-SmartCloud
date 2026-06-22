@@ -165,7 +165,7 @@ class ExpertAgentCreate(BaseModel):
     base_url: str = "https://api.deepseek.com"
     plain_api_key: Optional[str] = None
     tools_config: list[str] = Field(default_factory=list)
-    thinking_enabled: bool = False
+    thinking_enabled: bool = True
 
 
 @router.post("/expert/agents", summary="创建满配版公共专家")
