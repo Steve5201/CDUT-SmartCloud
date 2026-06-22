@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from core.database import get_sys_db, get_ai_db, get_expert_db
+from core.database import get_sys_db, get_ai_db, get_admin_expert_db
 from core import models, sys_service, encryption
 from core.dependencies import get_current_user
 import traceback
@@ -111,7 +111,7 @@ async def chat_channel(
         current_user: models.User = Depends(get_current_user),
         sys_db: Session = Depends(get_sys_db),
         ai_db: Session = Depends(get_ai_db),
-        expert_db: Session = Depends(get_expert_db)
+        expert_db: Session = Depends(get_admin_expert_db)
 ):
     # 1. 验证会话安全
     session = sys_db.query(models.ChatSession).filter(

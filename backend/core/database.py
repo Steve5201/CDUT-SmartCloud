@@ -71,16 +71,6 @@ def get_admin_ai_db():
     finally: db.close()
 
 
-AI_EXPERT_DB_URL = "postgresql://llm_worker:llm_worker_123@localhost:5432/cdut_expert_db"
-expert_engine = create_engine(AI_EXPERT_DB_URL, echo=False)
-ExpertSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=expert_engine)
-ExpertBase = declarative_base()
-
-def get_expert_db():
-    db = ExpertSessionLocal()
-    try: yield db
-    finally: db.close()
-
 # 运维端查专家库用的超级权限连接
 ADMIN_EXPERT_DB_URL = "postgresql://cdut_superuser:cdut_super_123@localhost:5432/cdut_expert_db"
 admin_expert_engine = create_engine(ADMIN_EXPERT_DB_URL, echo=False)
