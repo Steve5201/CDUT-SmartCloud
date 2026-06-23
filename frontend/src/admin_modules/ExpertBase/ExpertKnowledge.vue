@@ -72,15 +72,19 @@
               <!-- 通道 A：PDF 文件 -->
               <a-tab-pane key="pdf" tab="📄 PDF 文档上传">
                 <a-upload-dragger
-                  :customRequest="handleUploadPDF"
+                  :multiple="false"
                   :showUploadList="false"
-                  :disabled="!customSourceName.trim()"
+                  :before-upload="beforePDFUpload"
                 >
-                  <p class="ant-upload-text">点击或将 PDF 文件拖拽至此完成向量化</p>
-                  <p class="ant-upload-hint" style="color: #fa8c16" v-if="!customSourceName.trim()">
-                    ⚠️ 请先在上方为这份知识命名，才能解锁上传通道！
-                  </p>
+                  <p class="ant-upload-text">点击或将 PDF 文件拖拽至此</p>
                 </a-upload-dragger>
+
+                <!-- 显示选中的 PDF 文件和删除按钮 -->
+                <div v-if="selectedPDFFile" class="pdf-preview-chip">
+                  <paper-clip-outlined style="color: #1890ff; margin-right: 6px;" />
+                  <span class="file-name-text">{{ selectedPDFFile.name }}</span>
+                  <close-circle-filled @click="selectedPDFFile = null" class="file-remove-btn" />
+                </div>
               </a-tab-pane>
 
               <!-- 通道 B：纯文本手写 -->
@@ -89,21 +93,22 @@
                   v-model:value="textContent"
                   :rows="4"
                   placeholder="在此直接输入或粘贴你想写入大模型脑海里的专业文本内容..."
-                  :disabled="!customSourceName.trim()"
                 />
-                <a-button
-                  type="primary"
-                  block
-                  style="margin-top: 12px;"
-                  :loading="isSubmittingText"
-                  :disabled="!textContent.trim() || !customSourceName.trim()"
-                  @click="handleUploadText"
-                >
-                  确认导入文本知识
-                </a-button>
               </a-tab-pane>
             </a-tabs>
           </a-form-item>
+
+          <!-- 🌟【核心重构点】：将按钮移出 a-tabs！挂在表单最底部！统一调度 -->
+          <a-button
+            type="primary"
+            block
+            style="margin-top: 1px;"
+            :loading="uploadTab === 'pdf' ? false : isSubmittingText"
+            @click="handleImport"
+          >
+            确认导入{{ uploadTab === 'pdf' ? '文档' : '文本' }}知识
+          </a-button>
+
         </a-form>
       </div>
 
@@ -162,6 +167,9 @@ import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { dbOps } from '../../api/admin'
 import api from '../../api/index'
+import { CloseCircleFilled, PaperClipOutlined } from '@ant-design/icons-vue' // 确保引入了小图标
+
+const selectedPDFFile = ref(null) // 🌟 新增：用于临时在前端存放用户选中的 PDF 文件
 
 // 全局状态
 const expertsList = ref([])
@@ -197,6 +205,11 @@ const sourceColumns = [
   { title: '收录日期', dataIndex: 'created_at', key: 'created_at', align: 'center', width: 110 },
   { title: '物理定点清除', key: 'action', width: 100, align: 'center' }
 ]
+
+const beforePDFUpload = (file) => {
+  selectedPDFFile.value = file // 把选中的文件塞给变量
+  return false // 🌟 阻止默认的拖入即刻上传行为，等待用户按按钮！
+}
 
 // 1. 获取所有公开专家
 const loadExperts = async () => {
@@ -235,11 +248,26 @@ const loadSources = async () => {
   } catch(e) {} finally { loadingSources.value = false }
 }
 
+const handleImport = () => {
+  if (uploadTab.value === 'pdf') {
+    handleUploadPDF()
+  } else {
+    handleUploadText()
+  }
+}
+
 // 3. 通道 A：上传 PDF 知识
-const handleUploadPDF = async (options) => {
-  const { file, onSuccess, onError } = options
+const handleUploadPDF = async () => {
+  // 🌟 终点站守卫校验
+  if (!customSourceName.value.trim()) {
+    return message.warning('⚠️ 校验失败：请先输入本次导入知识集的名称！')
+  }
+  if (!selectedPDFFile.value) {
+    return message.warning('⚠️ 校验失败：请先拖入或选择一个 PDF 文件！')
+  }
+
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', selectedPDFFile.value)
   formData.append('custom_source_name', customSourceName.value.trim())
 
   const hide = message.loading(`正在将 PDF《${customSourceName.value}》解析并存入专家物理沙盒...`, 0)
@@ -248,16 +276,23 @@ const handleUploadPDF = async (options) => {
     hide()
     message.success('已成功上传！系统正在后台为您异步进行高维向量切分，请稍后刷新列表查看进度。')
     customSourceName.value = ''
-    onSuccess()
+    selectedPDFFile.value = null // 清空已选文件
     loadSources()
   } catch (e) {
     hide()
-    onError()
   }
 }
 
 // 4. 通道 B：录入纯文本知识
 const handleUploadText = async () => {
+  // 🌟 终点站守卫校验
+  if (!customSourceName.value.trim()) {
+    return message.warning('⚠️ 校验失败：请先输入本次导入知识集的名称！')
+  }
+  if (!textContent.value.trim()) {
+    return message.warning('⚠️ 校验失败：请先输入要录入的文本知识内容！')
+  }
+
   const formData = new FormData()
   formData.append('custom_source_name', customSourceName.value.trim())
   formData.append('text_content', textContent.value.trim())
@@ -299,18 +334,39 @@ const clearAllKnowledge = async () => {
 .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .table-area { background: #fff; }
 
-/* 抽屉样式美化 */
 .add-knowledge-section {
-  padding: 16px;
+  padding: 20px;
   background: #fafafa;
   border-radius: 8px;
   border: 1px solid #f0f0f0;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
-.add-knowledge-section h3 {
-  margin-bottom: 16px;
-  color: #fa8c16;
-  font-weight: bold;
+/* 限制文件名长度，防止再次把芯片撑爆 */
+.file-name-text {
+  font-size: 13px;
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdf-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #e6f7ff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-top: 12px;
+  width: fit-content;
+  max-width: 100%;
+}
+.file-remove-btn {
+  margin-left: 8px;
+  cursor: pointer;
+  color: #bfbfbf;
+  transition: color 0.3s;
+}
+.file-remove-btn:hover {
+  color: #ff4d4f;
 }
 .sources-list-area {
   margin-bottom: 30px;
@@ -318,5 +374,25 @@ const clearAllKnowledge = async () => {
 .nuclear-clear-zone {
   border-top: 1px dashed #ffa39e;
   padding-top: 20px;
+}
+/* 🌟【核心修复】：强行锁死拖拽上传框的物理高度，防止其被拉伸变形！ */
+:deep(.ant-upload-drag) {
+  height: 60px !important; /* 强制固定为精致的 130px 高度 */
+  background: #fafafa;
+}
+/* 🌟【核心修复】：让拖拽框内部的文字和图标，在 130px 高度内完美垂直居中 */
+:deep(.ant-upload-drag-container) {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100% !important;
+  padding: 0 !important;
+}
+/* 调整拖拽文字的小间距 */
+:deep(.ant-upload-text) {
+  margin: 0 !important;
+  font-size: 14px;
+  color: #595959;
 }
 </style>
