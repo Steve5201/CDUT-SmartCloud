@@ -40,6 +40,9 @@
                     登 录
                   </a-button>
                 </a-form-item>
+                <div class="footer-links">
+                  <a href="/tutor_login">课堂助教登录通道 &rarr;</a>
+                </div>
               </a-form>
             </a-tab-pane>
 
@@ -277,4 +280,5 @@ const handleRegister = async () => {
     padding: 20px;
   }
 }
+.footer-links { margin-top: 20px; text-align: center; font-size: 13px; }
 </style>

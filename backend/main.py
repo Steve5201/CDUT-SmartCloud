@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # 引入各大纯净路由模块
-from routers import auth, session, agent, file, admin
+from routers import auth, session, agent, file, admin, classroom, exam
 
 app = FastAPI(
     title="CDUT SmartCloud Backend",
@@ -26,6 +26,8 @@ app.include_router(session.router)
 app.include_router(agent.router)
 app.include_router(file.router)
 app.include_router(admin.router)
+app.include_router(classroom.router)
+app.include_router(exam.router)
 
 @app.get("/")
 def read_root():

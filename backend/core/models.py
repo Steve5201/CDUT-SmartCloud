@@ -1,7 +1,7 @@
 # backend/core/models.py
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 # 引入 PostgreSQL 专属的高级数据类型：JSONB 和 Vector
 from sqlalchemy.dialects.postgresql import JSONB
 from pgvector.sqlalchemy import Vector
@@ -168,3 +168,142 @@ class ExpertKnowledgeVector(ExpertBase):
     # 核心字段：必须包含 source，用于精细化删除
     metadata_ = Column('metadata', JSONB, default={})
     created_at = Column(DateTime, default=datetime.now)
+
+
+# 追加在 core/models.py 文件的最底部
+
+# ==========================================
+# 🎓 专家私教子系统核心业务表 (Tutor & Adaptive Learning Models)
+# ==========================================
+
+class ExpertCourse(ExpertBase):
+    """1. 专家公有课程大纲表 (供学生选课的公有池)"""
+    __tablename__ = 'expert_courses'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 【逻辑外键】：本门课是由哪一个公共专家智能体授课的
+    agent_id = Column(Integer, nullable=False, index=True)
+
+    course_name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # 关联选课表
+    enrollments = relationship("StudentCourseEnrollment", back_populates="course", cascade="all, delete-orphan")
+
+
+class StudentCourseEnrollment(ExpertBase):
+    """2. 学生选课与真实身份登记表"""
+    __tablename__ = 'student_course_enrollments'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 【逻辑外键】：关联系统库的 user.id 识别是谁登录的
+    student_id = Column(Integer, nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey('expert_courses.id', ondelete="CASCADE"), nullable=False)
+
+    real_name = Column(String(50), nullable=False)  # 学生姓名
+    student_number = Column(String(50), nullable=False)  # 学号
+    status = Column(String(20), default="active")  # "active" 学习中, "completed" 已结课
+    created_at = Column(DateTime, default=datetime.now)
+
+    course = relationship("ExpertCourse", back_populates="enrollments")
+    tutor_logs = relationship("TutorChatLog", back_populates="enrollment", cascade="all, delete-orphan")
+    # 关联私人知识树
+    personal_graphs = relationship("StudentKnowledgeGraph", back_populates="enrollment", cascade="all, delete-orphan")
+
+
+class StudentKnowledgeGraph(ExpertBase):
+    """3. 千人千面：学生私人知识节点树表 (自引用树状递归)"""
+    __tablename__ = 'student_knowledge_graphs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    enrollment_id = Column(Integer, ForeignKey('student_course_enrollments.id', ondelete="CASCADE"), nullable=False)
+
+    # 🌟【自引用外键】：指向当前表的 id 字段！完美的树状无限级裂变节点核心！
+    parent_node_id = Column(Integer, ForeignKey('student_knowledge_graphs.id', ondelete="CASCADE"), nullable=True)
+
+    node_title = Column(String(100), nullable=False)
+    is_core = Column(Boolean, default=True)  # True表示初始大纲节点，False表示因学不会被 AI 临时裂变出的更简单子节点
+    status = Column(String(20), default="locked")  # "locked"未锁, "learning"学习中, "testing"待测验, "failed"不达标, "mastered"已掌握
+    created_at = Column(DateTime, default=datetime.now)
+
+    enrollment = relationship("StudentCourseEnrollment", back_populates="personal_graphs")
+
+    # SQLAlchemy 自引用回组关联 (支持树状遍历)
+    parent_node = relationship(
+        "StudentKnowledgeGraph",
+        remote_side=[id],
+        # 🌟 核心：注入级联删除与被动删除，实现完美的自引用无限级树状物理销毁！
+        backref=backref("child_nodes", cascade="all, delete-orphan", passive_deletes=True)
+    )
+    # 关联私有习题
+    exercises = relationship("StudentExercise", back_populates="node", cascade="all, delete-orphan")
+
+
+class StudentExercise(ExpertBase):
+    """4. 专属私有习题库表 (追加模式)"""
+    __tablename__ = 'student_exercises'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    node_id = Column(Integer, ForeignKey('student_knowledge_graphs.id', ondelete="CASCADE"), nullable=False)
+
+    # 存放题干、选项、题型 (选择题、判断题等)
+    exercise_content = Column(JSONB, nullable=False)
+    standard_answer = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    node = relationship("StudentKnowledgeGraph", back_populates="exercises")
+    submissions = relationship("StudentExerciseSubmission", back_populates="exercise", cascade="all, delete-orphan")
+
+
+class StudentExerciseSubmission(ExpertBase):
+    """5. 学生答卷与 AI 批改流水表"""
+    __tablename__ = 'student_exercise_submissions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    exercise_id = Column(Integer, ForeignKey('student_exercises.id', ondelete="CASCADE"), nullable=False)
+
+    # 🌟【本次微调新增】：测试轮次标记。完美区分同一道题是第几次考！
+    attempt_round = Column(Integer, default=1, nullable=False, index=True)
+
+    student_answer = Column(Text, nullable=False)
+    is_correct = Column(Boolean, nullable=True)  # True 对，False 错，空表示尚未批改
+    ai_feedback = Column(Text, nullable=True)  # 大模型给出的详细批改意见
+    submitted_at = Column(DateTime, default=datetime.now)
+
+    exercise = relationship("StudentExercise", back_populates="submissions")
+
+
+class StudentLearningEvaluation(ExpertBase):
+    """6. 知识点综合测评判定表 (不以单题论成败)"""
+    __tablename__ = 'student_learning_evaluations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    node_id = Column(Integer, ForeignKey('student_knowledge_graphs.id', ondelete="CASCADE"), nullable=False)
+
+    # 🌟【本次微调对齐】：测试轮次标记。与答题流水表强对齐
+    attempt_round = Column(Integer, default=1, nullable=False, index=True)
+
+    total_exercises = Column(Integer, nullable=False)  # 这一轮考了多少题
+    correct_count = Column(Integer, nullable=False)  # 答对多少题
+    pass_score = Column(Integer, default=60)  # 及格分比例（例如 60 表示 60%）
+    is_passed = Column(Boolean, default=False)  # 综合判定是否及格（掌握）
+    ai_suggestion = Column(Text, nullable=True)  # 大模型给出的终极导学建议
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class TutorChatLog(ExpertBase):
+    """【新增】：私教课堂专属对话流水表（与日常陪聊绝对物理隔离）"""
+    __tablename__ = 'tutor_chat_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 🌟 强绑定学籍！一个学生一门课，永远对应这一条时间线的聊天记录！
+    enrollment_id = Column(Integer, ForeignKey('student_course_enrollments.id', ondelete="CASCADE"), nullable=False)
+
+    role = Column(String(20), nullable=False)  # 'user', 'assistant'
+    content = Column(Text, nullable=False)
+
+    # 用口袋装载：思考链(reasoning)、系统画外音(hidden)、模型状态(status)等
+    metadata_ = Column('metadata', JSONB, default={})
+    created_at = Column(DateTime, default=datetime.now)
+    enrollment = relationship("StudentCourseEnrollment", back_populates="tutor_logs")

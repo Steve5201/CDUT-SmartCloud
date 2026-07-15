@@ -138,11 +138,32 @@ const inputText = ref('')
 const selectedFile = ref(null)
 const chatContainerRef = ref(null)
 
+const smartScrollToBottom = () => {
+  const container = chatContainerRef.value
+  if (!container) return
+
+  // 🌟【核心算法】：判断用户是否处于底部附近
+  // 如果当前滚动条距离底部小于 150px，我们就认为用户没有往上滚去翻历史，此时我们强行钉在底部！
+  const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
+
+  if (isAtBottom) {
+    nextTick(() => {
+      container.scrollTop = container.scrollHeight
+    })
+  }
+}
+
+// 🌟【核心修复】：开启 deep 深度监听！
+// 这样，即使数组长度没变，只要大模型在流式地拼装、修改某一个气泡内部的字符串，都会瞬间触发滚动！
+watch(() => props.messages, () => {
+  smartScrollToBottom()
+}, { deep: true })
+
 // 自动滚动到底部
-watch(() => props.messages.length, async () => {
-  await nextTick()
-  if (chatContainerRef.value) chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
-})
+// watch(() => props.messages.length, async () => {
+//   await nextTick()
+//   if (chatContainerRef.value) chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
+// })
 
 const handleFileUpload = (file) => { selectedFile.value = file; return false }
 const handleFileDrop = (e) => { if (e.dataTransfer.files.length > 0) selectedFile.value = e.dataTransfer.files[0] }
@@ -156,7 +177,7 @@ const handleSend = () => {
 </script>
 
 <style scoped>
-.center-layout { background: #fff; display: flex; flex-direction: column; height: 100vh; }
+.center-layout { background: #fff; display: flex; flex-direction: column; height: 100%; }
 .chat-content-area { flex: 1; overflow-y: auto; position: relative; }
 .welcome-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #595959; }
 .welcome-screen .logo { width: 120px; margin-bottom: 24px; }

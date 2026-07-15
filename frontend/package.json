@@ -12,6 +12,7 @@
     "@ant-design/icons-vue": "^7.0.1",
     "@antv/g2": "^5.4.8",
     "@antv/g6": "^4.8.24",
+    "@antv/layout": "^2.0.0",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.17.0",
     "highlight.js": "^11.11.1",

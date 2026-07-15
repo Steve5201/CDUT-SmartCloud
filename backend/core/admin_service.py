@@ -89,6 +89,39 @@ def update_raw_table_data(db: Session, table_name: str, record_id: int, update_d
     return True
 
 
+def insert_raw_table_data(db: Session, table_name: str, insert_data: dict) -> int:
+    """动态插入新行到任意表，并返回新行的 ID (👑 自适应 PostgreSQL 强类型)"""
+    if not insert_data: raise ValueError("插入数据不能为空")
+
+    # 剔除可能存在的恶意 id (让数据库自增)
+    insert_data.pop("id", None)
+
+    # 类型智能转换 (和 Update 一模一样的逻辑)
+    processed_data = {}
+    for k, v in insert_data.items():
+        if v == "" or v == "None" or v == "null":
+            processed_data[k] = None
+        elif isinstance(v, str) and v.lower() == "true":
+            processed_data[k] = True
+        elif isinstance(v, str) and v.lower() == "false":
+            processed_data[k] = False
+        elif isinstance(v, (dict, list)):
+            processed_data[k] = json.dumps(v, ensure_ascii=False)
+        else:
+            processed_data[k] = v
+
+    columns = ", ".join(processed_data.keys())
+    values = ", ".join([f":{k}" for k in processed_data.keys()])
+
+    # 使用 RETURNING id 拿到刚插入数据的物理 ID
+    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({values}) RETURNING id"
+
+    result = db.execute(text(sql), processed_data)
+    new_id = result.scalar()
+    db.commit()
+    return new_id
+
+
 def delete_raw_table_data(db: Session, table_name: str, record_id: int) -> bool:
     """高危：直接根据物理 ID，将任意表的数据进行永久抹除"""
     # 采用参数化绑定 :id，防止 SQL 注入

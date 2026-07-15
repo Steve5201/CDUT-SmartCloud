@@ -22,6 +22,11 @@ export default {
       pageId: 'expert_knowledge',
       title: '专业知识库管理',
       component: () => import('./ExpertKnowledge.vue')
-    }
+    },
+    // 🌟【挂载新增模块】：课程大纲与排课中心
+    {
+      pageId: 'biz_courses',
+      title: '全校公共课程中心',
+      component: () => import('./Courses.vue') }
   ]
 }

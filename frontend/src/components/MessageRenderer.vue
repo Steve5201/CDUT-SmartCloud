@@ -7,11 +7,17 @@
       <!-- A. 如果是 G6 思维导图 -->
       <MindMapNode v-if="block.type === 'mindmap'" :chartData="block.data" />
 
-      <!-- B. 如果是 G2 数值图表 (柱状图/折线图) 【新增！】 -->
-      <G2ChartNode v-else-if="block.type === 'g2_chart'" :chartData="block.raw" />
+      <!-- 🌟 新增：G6 业务流程图 -->
+      <FlowChartNode v-else-if="block.type === 'expert_flow'" :chartData="block.raw" />
+
+      <!-- 🌟 G2 统计/雷达/饼图大杂烩 -->
+      <G2ChartNode v-else-if="block.type === 'g2_chart' || block.type === 'expert_radar' || block.type === 'expert_pie'" :chartData="block.raw" />
 
       <!-- C. 如果是数据表格 【新增！】 -->
       <TableNode v-else-if="block.type === 'data_table'" :tableData="block.raw" />
+
+      <!-- 🌟 新增：专家复习概念卡片 -->
+      <ConceptCardNode v-else-if="block.type === 'concept_card'" :cardData="block.raw" />
 
       <!-- D. 普通 Markdown -->
       <div v-else class="markdown-body" v-html="renderMarkdown(block.content)"></div>
@@ -28,6 +34,8 @@ import 'highlight.js/styles/github.css'
 import MindMapNode from './MindMapNode.vue'
 import G2ChartNode from './G2ChartNode.vue'
 import TableNode from './TableNode.vue'
+import ConceptCardNode from './ConceptCardNode.vue' // 🌟 引入
+import FlowChartNode from './FlowChartNode.vue'
 
 const props = defineProps({
   rawContent: {
@@ -112,19 +120,20 @@ const parsedBlocks = computed(() => {
     try {
       const jsonData = JSON.parse(match[1])
 
-      // 检查里面是否有我们约定的图表暗号
       if (jsonData.type === 'mindmap' && jsonData.data) {
         blocks.push({ type: 'mindmap', data: jsonData.data })
-      } else if (jsonData.type === 'g2_chart' && jsonData.data) {
-        blocks.push({ type: 'g2_chart', raw: jsonData })
+      } else if (['g2_chart', 'expert_radar', 'expert_pie'].includes(jsonData.type) && jsonData.data) {
+        blocks.push({ type: jsonData.type, raw: jsonData }) // 🌟 新增 G2 合并识别
+      } else if (jsonData.type === 'expert_flow' && jsonData.data) {
+        blocks.push({ type: 'expert_flow', raw: jsonData }) // 🌟 识别流程图
       } else if (jsonData.type === 'data_table' && jsonData.columns) {
         blocks.push({ type: 'data_table', raw: jsonData })
+      } else if (jsonData.type === 'concept_card') {
+        blocks.push({ type: 'concept_card', raw: jsonData }) // 🌟 识别概念卡
       } else {
-        // 如果是合法的 JSON，但不是图表，原样还给 Markdown 渲染器
         blocks.push({ type: 'text', content: match[0] })
       }
     } catch (e) {
-      // 流式输出中 JSON 未闭合时，优雅降级展示打字机效果
       blocks.push({ type: 'text', content: match[0] })
     }
 

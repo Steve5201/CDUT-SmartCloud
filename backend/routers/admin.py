@@ -91,6 +91,21 @@ def update_raw_data(
         raise HTTPException(status_code=400, detail=f"覆写失败: {str(e)}")
 
 
+class InsertRawDataRequest(BaseModel):
+    insert_data: dict
+
+@router.post("/db/tables/{table_name}/data", summary="高危：物理级插入源表数据")
+def insert_raw_data(
+    db_alias: str, table_name: str, req: InsertRawDataRequest,
+    _=Depends(verify_admin_role), db: Session = Depends(get_target_db)
+):
+    try:
+        new_id = admin_service.insert_raw_table_data(db, table_name, req.insert_data)
+        return {"status": "success", "message": f"新数据已成功物理写入！系统分配 ID: {new_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"插入失败: {str(e)}")
+
+
 @router.delete("/db/tables/{table_name}/data/{record_id}", summary="高危：物理级暴力删除源表数据")
 def delete_raw_data(
         db_alias: str, table_name: str, record_id: int,
@@ -280,3 +295,51 @@ def get_all_expert_tools(_=Depends(verify_admin_role)):
     for t_id, func in EXPERT_TOOL_BUILDERS.items():
         tools_info.append({"id": t_id, "name": getattr(func, "friendly_name", t_id), "type": "expert"})
     return {"status": "success", "tools": tools_info}
+
+
+class CourseCreateUpdate(BaseModel):
+    agent_id: int
+    course_name: str
+    description: Optional[str] = ""
+
+@router.post("/courses", summary="超管：新建课程大纲")
+def create_course(req: CourseCreateUpdate, _=Depends(verify_admin_role), expert_db: Session = Depends(get_admin_expert_db)):
+    new_course = models.ExpertCourse(
+        agent_id=req.agent_id,
+        course_name=req.course_name,
+        description=req.description
+    )
+    expert_db.add(new_course)
+    expert_db.commit()
+    return {"status": "success", "message": "新课程发布成功！"}
+
+@router.get("/courses", summary="超管：获取全校课程大纲")
+def list_courses(_=Depends(verify_admin_role), expert_db: Session = Depends(get_admin_expert_db)):
+    courses = expert_db.query(models.ExpertCourse).order_by(models.ExpertCourse.created_at.desc()).all()
+    # 为了前端展示好看，我们顺便把开这门课的专家智能体的名字查出来
+    return {
+        "status": "success",
+        "courses": [{
+            "id": c.id, "agent_id": c.agent_id, "course_name": c.course_name,
+            "description": c.description, "created_at": c.created_at
+        } for c in courses]
+    }
+
+@router.put("/courses/{course_id}", summary="超管：修改课程信息")
+def update_course(course_id: int, req: CourseCreateUpdate, _=Depends(verify_admin_role), expert_db: Session = Depends(get_admin_expert_db)):
+    course = expert_db.query(models.ExpertCourse).filter(models.ExpertCourse.id == course_id).first()
+    if not course: raise HTTPException(status_code=404, detail="课程不存在")
+    course.agent_id = req.agent_id
+    course.course_name = req.course_name
+    course.description = req.description
+    expert_db.commit()
+    return {"status": "success", "message": "课程信息已更新！"}
+
+@router.delete("/courses/{course_id}", summary="超管：强制下线删除课程")
+def delete_course(course_id: int, _=Depends(verify_admin_role), expert_db: Session = Depends(get_admin_expert_db)):
+    course = expert_db.query(models.ExpertCourse).filter(models.ExpertCourse.id == course_id).first()
+    if not course: raise HTTPException(status_code=404, detail="课程不存在")
+    # 🌟 级联大杀器：课程一删，全校选了这门课的学生的进度全清空！
+    expert_db.delete(course)
+    expert_db.commit()
+    return {"status": "success", "message": "课程已强行下线！"}

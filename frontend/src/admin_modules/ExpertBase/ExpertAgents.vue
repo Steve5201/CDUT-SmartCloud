@@ -103,6 +103,10 @@
           <a-input v-model:value="agentForm.base_url" placeholder="https://api.deepseek.com" />
         </a-form-item>
 
+        <a-form-item label="💡 启用深度思考模式">
+          <a-switch v-model:checked="agentForm.thinking_enabled" checked-children="开启" un-checked-children="关闭" />
+        </a-form-item>
+
         <a-form-item label="提供官方/私有 API Key">
           <a-input-password v-model:value="agentForm.plain_api_key" placeholder="输入密钥。留空则表示使用系统全局默认 Key" />
         </a-form-item>
@@ -153,7 +157,7 @@ const availableTools = ref([]) // 实时从后端获取的全景工具池
 const agentForm = reactive({
   name: '', description: '', system_prompt: '', provider: 'deepseek',
   agent_model_name: 'deepseek-v4-flash', base_url: 'https://api.deepseek.com',
-  plain_api_key: '', tools_config: []
+  plain_api_key: '', tools_config: [], thinking_enabled: false
 })
 
 const columns = [
@@ -217,13 +221,13 @@ const openAgentModal = async (mode, agentData = null) => {
     agentForm.agent_model_name = agentData.agent_model_name || 'deepseek-v4-flash'
     agentForm.base_url = agentData.base_url || ''
     agentForm.plain_api_key = ''
-    agentForm.tools_config = agentData.tools_config ? [...agentData.tools_config] : []
+    agentForm.tools_config = agentData.tools_config ? [...agentData.tools_config] : [], agentForm.thinking_enabled = agentData.thinking_enabled !== undefined ? agentData.thinking_enabled : false
   } else {
     editingAgentId.value = null
     Object.assign(agentForm, {
       name: '', description: '', system_prompt: '你是一个专业的公共领域专家。请充分利用工具回答问题。',
       provider: 'deepseek', agent_model_name: 'deepseek-v4-flash', base_url: 'https://api.deepseek.com',
-      plain_api_key: '', tools_config: []
+      plain_api_key: '', tools_config: [], thinking_enabled: false
     })
   }
 }
@@ -247,7 +251,8 @@ const handleSaveAgent = async () => {
           provider: agentForm.provider,
           agent_model_name: agentForm.agent_model_name,
           base_url: agentForm.base_url,
-          tools_config: agentForm.tools_config
+          tools_config: agentForm.tools_config,
+          thinking_enabled: agentForm.thinking_enabled
           // 密码更新这里可以省略
         }
       })

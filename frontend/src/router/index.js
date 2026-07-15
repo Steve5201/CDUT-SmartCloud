@@ -29,6 +29,17 @@ const routes = [
     name: 'Admin',
     component: () => import('../views/Admin.vue'),
     meta: { requiresAuth: true, allowedRoles: ['admin'] }
+  },
+  {
+    path: '/tutor_login',
+    name: 'TutorLogin',
+    component: () => import('../views/TutorLogin.vue')
+  },
+  {
+    path: '/classroom',
+    name: 'Classroom',
+    component: () => import('../views/Classroom.vue'),
+    meta: { requiresAuth: true, allowedRoles: ['user', 'vip'] }
   }
 ]
 
@@ -59,6 +70,10 @@ router.beforeEach((to, from, next) => {
   else if (to.path === '/login' && token) {
     // 已经登录了还去登录页，遣返回各自的大本营
     next(userRole === 'admin' ? '/admin' : '/chat')
+  }
+  else if (to.path === '/tutor_login' && token) {
+    // 已经登录了还去登录页，遣返回各自的大本营
+    next(userRole === 'admin' ? '/admin' : '/tutor_login')
   }
   else {
     next()

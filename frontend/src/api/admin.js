@@ -12,8 +12,17 @@ export const dbOps = {
   updateData: (dbAlias, tableName, data) => api.put(`/api/admin/db/tables/${tableName}/data?db_alias=${dbAlias}`, data),
   // 5. 物理删除整行数据
   deleteData: (dbAlias, tableName, recordId) => api.delete(`/api/admin/db/tables/${tableName}/data/${recordId}?db_alias=${dbAlias}`),
+  // 6. 物理插入一行数据
+  insertData: (dbAlias, tableName, data) => api.post(`/api/admin/db/tables/${tableName}/data?db_alias=${dbAlias}`, data),
   // 超管专享：创建用户（指派角色）
   createUser: (userData) => api.post('/api/admin/users', userData),
   // 超管专享：修改用户角色或重置密码
   updateUser: (userId, updateData) => api.put(`/api/admin/users/${userId}`, updateData)
+}
+
+export const courseOps = {
+  list: () => api.get('/api/admin/courses'),
+  create: (data) => api.post('/api/admin/courses', data),
+  update: (id, data) => api.put(`/api/admin/courses/${id}`, data),
+  remove: (id) => api.delete(`/api/admin/courses/${id}`)
 }

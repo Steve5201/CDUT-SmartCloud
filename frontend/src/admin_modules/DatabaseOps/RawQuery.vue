@@ -36,6 +36,10 @@
           :disabled="!searchField"
         />
 
+        <a-button type="primary" @click="openEditModal(null)" :disabled="!currentTable" style="margin-left: 16px;">
+          <plus-outlined /> 插入新行
+        </a-button>
+
         <a-button type="primary" ghost @click="handleRefresh">
           <reload-outlined /> 重置刷新
         </a-button>
@@ -101,7 +105,7 @@
       title="📝 物理级源表数据编辑"
       @ok="submitRowEdit"
       :confirmLoading="isSavingRow"
-      okText="确认覆写"
+      okText="确认"
       cancelText="取消"
     >
       <div style="color: #fa8c16; margin-bottom: 16px; font-size: 13px;">
@@ -133,8 +137,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
 import { dbOps } from '../../api/admin'
+import { ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
 
 const currentDb = ref('sys')
 const currentTable = ref(null)
@@ -153,6 +157,7 @@ const rawColumnsList = ref([]) // 存储未加工的列信息，用于动态表�
 
 // 动态编辑表单状态
 const editModalVisible = ref(false)
+const modalMode = ref('edit')
 const isSavingRow = ref(false)
 const editingRowId = ref(null)
 const editForm = reactive({})
@@ -264,57 +269,56 @@ const handleDelete = async (recordId) => {
   } catch (e) {}
 }
 
-// ==========================================
-// 🌟【新增】：动态编辑弹窗核心逻辑
-// ==========================================
+// 🌟 复用弹窗：如果没有传 record，就是进入新建模式！
 const openEditModal = (record) => {
-  editingRowId.value = record.id
   editModalVisible.value = true
-
-  // 清空上一次的表单
   Object.keys(editForm).forEach(key => delete editForm[key])
 
-  // 核心回填：根据当前表的所有字段，把整行数据贴入表单
-  rawColumnsList.value.forEach(col => {
-    const colName = col.column
-    if (colName !== 'id') {
-      const val = record[colName]
-      // 如果字段是对象（如 JSONB），序列化为漂亮的格式展示
-      editForm[colName] = typeof val === 'object' ? JSON.stringify(val, null, 2) : (val !== null ? String(val) : '')
-    }
-  })
+  if (record) {
+    modalMode.value = 'edit'
+    editingRowId.value = record.id
+    rawColumnsList.value.forEach(col => {
+      if (col.column !== 'id') {
+        const val = record[col.column]
+        editForm[col.column] = typeof val === 'object' ? JSON.stringify(val, null, 2) : (val !== null ? String(val) : '')
+      }
+    })
+  } else {
+    modalMode.value = 'create'
+    editingRowId.value = null
+    // 新建时，把所有字段全部设为空字符串，等待管理员填入
+    rawColumnsList.value.forEach(col => {
+      if (col.column !== 'id') editForm[col.column] = ''
+    })
+  }
 }
 
+// 🌟 提交表单：根据 mode 走不同的接口
 const submitRowEdit = async () => {
   isSavingRow.value = true
   try {
-    // 组装要提交的载荷数据
     const payload = {}
     for (const key of Object.keys(editForm)) {
       const val = editForm[key]
-
-      // 智能探测：如果是 JSONB 字段，尝试解析回 dict 格式
       const colMeta = rawColumnsList.value.find(c => c.column === key)
-      if (colMeta && colMeta.type === 'jsonb') {
-        try {
-          payload[key] = JSON.parse(val)
-        } catch {
-          return message.error(`字段 [${key}] 不是合法的 JSON 格式，请修正！`)
-        }
+      if (colMeta && colMeta.type === 'jsonb' && val.trim() !== '') {
+        try { payload[key] = JSON.parse(val) }
+        catch { return message.error(`字段 [${key}] JSON 格式错误！`) }
       } else {
         payload[key] = val
       }
     }
 
-    // 调用后端的 /api/admin/db/tables/{table_name}/data 动态修改！
-    await dbOps.updateData(currentDb.value, currentTable.value, {
-      record_id: editingRowId.value,
-      update_data: payload
-    })
+    if (modalMode.value === 'create') {
+      await dbOps.insertData(currentDb.value, currentTable.value, { insert_data: payload })
+      message.success('新记录物理写入成功！')
+    } else {
+      await dbOps.updateData(currentDb.value, currentTable.value, { record_id: editingRowId.value, update_data: payload })
+      message.success('数据覆写成功！')
+    }
 
-    message.success('数据覆写成功！')
     editModalVisible.value = false
-    loadTableData() // 刷新当前页
+    loadTableData()
   } catch (e) {
   } finally { isSavingRow.value = false }
 }
