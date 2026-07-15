@@ -6,3 +6,7 @@ rm -rf /var/www/html/smartcloud/*
 cp -r frontend/dist/* /var/www/html/smartcloud/
 chmod -R 755 /var/www/html/smartcloud
 systemctl restart nginx
+
+cd ~/CDUT-SmartCloud/backend
+source .venv/bin/activate
+python -m core.init_db
