@@ -47,7 +47,20 @@ class AsyncAgentEngine:
 
     async def astream_run(self, user_message: str, history_logs: list[models.ChatLog]) -> AsyncGenerator[str, None]:
         # 1. 初始化标准 messages 数组
-        messages = [{"role": "system", "content": self.config.system_prompt}]
+        # messages = [{"role": "system", "content": self.config.system_prompt}]
+        enhanced_system_prompt = self.config.system_prompt
+        if self.openai_tools:
+            enhanced_system_prompt += (
+                "\n\n【!!!系统最高安全指令!!!】：\n"
+                "你已被挂载了专用的外部工具箱。当用户的请求需要查询数据库、生成图表、记录笔记或拆分知识点时，"
+                "你【必须且只能】使用原生 Function Calling 协议调用对应工具！\n"
+                "绝对【禁止】在普通回复中用纯文本或 Markdown 代码块假装执行工具！\n"
+                "如果不确定，宁可先调用工具，再根据工具结果回答！"
+            )
+
+        # 1. 初始化标准 messages 数组 (使用强化后的 Prompt)
+        # messages = [{"role": "system", "content": enhanced_system_prompt}]
+        messages = []
 
         # 加载历史记录 (官方文档指出：历史固定轮次无需再次传入 reasoning_content)
         for log in history_logs:
@@ -57,6 +70,7 @@ class AsyncAgentEngine:
                 content += f"\n{log.metadata_.get('hidden_context')}"
             messages.append({"role": log.role, "content": content})
 
+        messages.append({"role": "system", "content": enhanced_system_prompt})
         messages.append({"role": "user", "content": user_message})
 
         # 2. 思考模式配置
@@ -70,11 +84,14 @@ class AsyncAgentEngine:
         # 3. 核心：多轮工具调度循环 (While Loop)
         # ==========================================
         while True:
+            current_tool_choice = "auto" if self.openai_tools else "none"
             response_stream = await self.client.chat.completions.create(
                 model=self.config.agent_model_name,
                 messages=messages,
                 tools=self.openai_tools,
+                tool_choice=current_tool_choice,  # 🌟 显式唤醒工具神经元
                 stream=True,
+                temperature=0.1,  # 🛡️ 绝杀 2：极限降温，剥夺幻觉创造力，增强执行力
                 extra_body=extra_body
             )
 
