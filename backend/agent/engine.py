@@ -65,10 +65,26 @@ class AsyncAgentEngine:
         # 加载历史记录 (官方文档指出：历史固定轮次无需再次传入 reasoning_content)
         for log in history_logs:
             content = log.content
-            # 如果当时记录了隐藏的文件路径，拼进去
-            if log.role == "user" and log.metadata_ and log.metadata_.get("hidden_context"):
-                content += f"\n{log.metadata_.get('hidden_context')}"
-            messages.append({"role": log.role, "content": content})
+            meta = log.metadata_ or {}
+
+            if log.role == "user":
+                # 用户隐式提示（已有逻辑）
+                if meta.get("hidden_context"):
+                    content += f"\n{meta.get('hidden_context')}"
+                messages.append({"role": log.role, "content": content})
+
+            elif log.role == "assistant":
+                # 🌟【核心首创】：AI 历史工具执行铁证注入！
+                used_tools = meta.get("used_tools", [])
+                if used_tools:
+                    # 将工具列表转化为逗号分隔的字符串
+                    tools_str = ", ".join(used_tools)
+                    # 在 AI 当时的回答前面，强行加上系统画外音，让它无法抵赖！
+                    tool_memory_badge = (f"[系统日志核实：在此轮对话中，你规范调用了底层工具：{tools_str}，"
+                                         f"这是一段来自系统插入的系统纪录，你只会在历史信息里面看到这提示。]\n")
+                    content = tool_memory_badge + content
+
+                messages.append({"role": log.role, "content": content})
 
         messages.append({"role": "system", "content": enhanced_system_prompt})
         messages.append({"role": "user", "content": user_message})
