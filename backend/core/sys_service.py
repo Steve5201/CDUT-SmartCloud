@@ -43,7 +43,8 @@ def delete_session(db: Session, session_id: int, user_id: int):
 # 3. 历史聊天记录 (Log) 的 CRUD
 # ==========================================
 def get_session_logs(db: Session, session_id: int):
-    return db.query(models.ChatLog).filter(models.ChatLog.session_id == session_id).order_by(models.ChatLog.created_at.asc()).all()
+    return (db.query(models.ChatLog).filter(models.ChatLog.session_id == session_id)
+            .order_by(models.ChatLog.created_at.asc()).limit(20).all())
 
 def append_chat_logs(db: Session, session_id: int, user_msg: str, ai_msg: str):
     log_crud.create(db, obj_in={"session_id": session_id, "role": "user", "content": user_msg})

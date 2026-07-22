@@ -188,19 +188,27 @@ async def chat_channel(
                 yield sse_chunk
 
             # --- 流结束，写入数据库 ---
-            # 👑【核心修复 1】：使用传入的局部变量 session_id，而不是 session.id
-            new_user_log = models.ChatLog(session_id=session_id, role="user", content=user_message,
-                                          metadata_=meta_payload)
+            try:
+                # 🌟 极其关键：必须使用整型 session_id（传进来的局部变量），而不是 session.id
+                # 因为在流式期间，原来的 session 实体对象极可能已被挂起或失效！
+                # 👑【核心修复 1】：使用传入的局部变量 session_id，而不是 session.id
+                new_user_log = models.ChatLog(session_id=session_id, role="user", content=user_message,
+                                              metadata_=meta_payload)
 
-            ai_meta = {}
-            if hidden_ctx: ai_meta["hidden_context"] = hidden_ctx
-            if full_reasoning: ai_meta["reasoning_content"] = full_reasoning
-            if used_tools: ai_meta["used_tools"] = used_tools  # 🌟存入数据库！
-            new_ai_log = models.ChatLog(session_id=session_id, role="assistant", content=full_reply,
-                                        metadata_=ai_meta)
+                ai_meta = {}
+                if hidden_ctx: ai_meta["hidden_context"] = hidden_ctx
+                if full_reasoning: ai_meta["reasoning_content"] = full_reasoning
+                if used_tools: ai_meta["used_tools"] = used_tools  # 🌟存入数据库！
+                new_ai_log = models.ChatLog(session_id=session_id, role="assistant", content=full_reply,
+                                            metadata_=ai_meta)
 
-            sys_db.add_all([new_user_log, new_ai_log])
-            sys_db.commit()
+                sys_db.add_all([new_user_log, new_ai_log])
+                sys_db.commit()
+
+            except Exception as db_e:
+                # 🌟 幽灵捕获：如果因为高并发导致父级 Session 被提前删除，立刻回滚，抛弃孤儿记录！
+                sys_db.rollback()
+                print(f"⚠️ [Security] 拒绝幽灵写入！会话可能已被销毁。拦截信息: {db_e}")
 
             # --- 🌟【核心修复 2】：使用缓存的标记起名 ---
             if is_first_round:
